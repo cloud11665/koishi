@@ -1,20 +1,56 @@
-from pydantic import BaseModel
-from enum import Enum
 from collections import defaultdict
+from enum import Enum
+from datetime import datetime
+from typing import List
 
-statdict = defaultdict(lambda:0)
+from pydantic import BaseModel
+
+
+class _HashModel(BaseModel):
+    def __hash__(self):
+        return hash((type(self),) + tuple(self.__dict__.values()))
+
+# Contests
+
+statdict = defaultdict(lambda:1)
 statdict[""] = 1
 statdict["Pending"] = 2
 
-
-class Status(Enum):
-	denied = 0
-	approved = 1
+class CStatus(Enum):
+	approved = 0
+	denied = 1
 	pending = 2
 
+# Problems
 
-class Contest(BaseModel):
+class Problem(_HashModel):
 	id:int
+	parent_id:int
+	code:str
 	name:str
-	desc:str
-	status:Status
+	note:str
+
+class ProblemSet(_HashModel):
+	problems:List[Problem]
+	title:str
+
+# Results
+
+class RStatus(Enum):
+	OK = 0
+	ANS = 1
+	TLE = 2
+	RTE = 3
+	MEM = 4
+	EXT = 5
+	CME = 6
+	INT = 7
+	REJ = 8
+	RUL = 9
+
+class Result(_HashModel):
+	id:int
+	parent_id:int
+	code:str
+	status:RStatus
+	date:datetime
