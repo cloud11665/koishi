@@ -12,14 +12,14 @@ class _HashModel(BaseModel):
 
 # Contests
 
-statdict = defaultdict(lambda:1)
-statdict[""] = 1
-statdict["Pending"] = 2
+statdict = defaultdict(lambda:2)
+statdict[""] = 0
+statdict["Pending"] = 1
 
 class CStatus(Enum):
 	approved = 0
-	denied = 1
-	pending = 2
+	denied = 2
+	pending = 1
 
 # Problems
 
