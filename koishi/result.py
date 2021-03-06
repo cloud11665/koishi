@@ -28,6 +28,9 @@ class ResultDetails(_HashModel):
 		test_val = " ".join(test_val)
 		return f"<DetailedResult {test_val} \"{text}\">"
 
+	def __str__(self):
+		return repr(self)
+
 
 class Result:
 	def __init__(self, ses:rq.Session, id:int, parent_id:int, code:str, status:RStatus, date:datetime):
@@ -38,7 +41,8 @@ class Result:
 		self.status = status
 		self.date = date
 
-	lru_cache(2<<16)
+	@property
+	@lru_cache(2<<16)
 	def details(self):
 		resp = self.ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.parent_id}/results/{self.id}")
 		dom = html.fromstring(resp.text)
