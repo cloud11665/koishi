@@ -40,9 +40,9 @@ class Contest:
 		results:
 			A list of latest results.
 	"""
-	def __init__(self, ses: requests.Session, id: int, name: str, desc: str, status: CStatus):
+	def __init__(self, ses: requests.Session, id_: int, name: str, desc: str, status: CStatus):
 		self._ses = ses
-		self.id = id
+		self.id = id_
 		self.name = name
 		self.desc = desc
 		self.status = status
@@ -126,10 +126,3 @@ class Contest:
 	def __ne__(self, other):
 		return self.id != other.id
 
-
-
-"""
-2a^2 + 2b^2 + 2c^2 - 2ab - 2ac - 2bc >= 0
-(a^2 - 2ab + b^2) + (b^2 - 2bc + c^2) + (a^2 - 2ac + c^2) >= 0
-(a-b)^2 + (b-c)^2 + (a-c)^2 >= 0
-"""
