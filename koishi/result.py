@@ -33,9 +33,9 @@ class ResultDetails(_HashModel):
 
 
 class Result:
-	def __init__(self, ses:rq.Session, id:int, parent_id:int, code:str, status:RStatus, date:datetime):
+	def __init__(self, ses:rq.Session, id_:int, parent_id:int, code:str, status:RStatus, date:datetime):
 		self.ses = ses
-		self.id = id
+		self.id = id_
 		self.parent_id = parent_id
 		self.code = code
 		self.status = status
@@ -62,7 +62,7 @@ class Result:
 
 			tests.append(ResultTest(name=name, status=status, time=time))
 
-		source = tr.xpath("//pre[@class='literal-block']/text()")
+		source = dom.xpath("//pre[@class='literal-block']/text()")
 		source = "".join(source)
 		source = libhtml.unescape(source)
 

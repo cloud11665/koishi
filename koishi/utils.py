@@ -16,8 +16,10 @@ def parse_news(response: str) -> List[str]:
 			content = md.markdownify(content)
 			lines = []
 			for line in content.split("\n"):
-				if line == "": continue
-				if line == "> ": continue
+				if line == "":
+					continue
+				if line == "> ":
+					continue
 				lines.append(line)
 
 			content = "\n".join(lines)
