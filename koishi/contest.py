@@ -1,77 +1,135 @@
+import re
 from datetime import datetime
-from functools import lru_cache, singledispatchmethod
-from typing import Dict, List, Optional, Union
-from enum import Enum
+from typing import List
+from functools import lru_cache
+from urllib.error import HTTPError
 
-import chardet
+import lxml
 import markdownify as md
-import requests as rq
-from lxml import etree, html
+import requests
 
+from exceptions import AccessError
+from models import CStatus, Problem, ProblemSet, RStatus
 from result import Result
-from models import RStatus, CStatus
+from utils import parse_news, xpstr
+
 
 class Contest:
-	def __init__(self, ses: rq.Session, id: int, name: str, desc: str, status: CStatus):
-		self.ses = ses
+	"""Wrapper class for satori contest.
+
+	Args:
+		ses: requests.Session
+		id: int
+		name: str
+		desc: str
+		status: CStatus
+
+	Fields:
+		Contest.id: int
+		Contest.name: str
+		Contest.desc: str
+		Contest.status: CStatus
+
+	Properties:
+		news:
+			A list of markdown formatted messages.
+		problems:
+			A list of problems sorted from oldest to newest.
+		result:
+			The result of the latest submit.
+		results:
+			A list of latest results.
+	"""
+	def __init__(self, ses: requests.Session, id: int, name: str, desc: str, status: CStatus):
+		self._ses = ses
 		self.id = id
 		self.name = name
 		self.desc = desc
 		self.status = status
 
-	@lru_cache(2 << 20)
-	def news(self, as_md: Optional[bool] = True) -> List[str]:
+	@property
+	@lru_cache(None)
+	def news(self) -> List[str]:
+		"""A list of markdown formatted messages."""
 		resp = self.ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/news")
-		dom = html.fromstring(resp.text)
+		return parse_news(resp.text)
+
+	@property
+	@lru_cache(None)
+	def problems(self) -> List[Problem]:
+		"""A list of problems sorted from oldest to newest."""
+		if self.status.value > 1:
+			raise AccessError(f"account not a member of \"{self.name}\" contest")
+
+		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/problems")
+		dom = lxml.html.fromstring(resp.text)
+
+		if resp.status_code == 404:
+			raise HTTPError(resp.url,resp.status_code,"Contest not found",
+				hdrs=None,fp=None)
 
 		out = []
-		for div in dom.xpath("//div[@id='content']/div"):
-			for tr in div.xpath(".//table[@class='message']"):
-				content = etree.tostring(
-					tr, pretty_print=True, encoding="unicode", with_tail=False
-				)
+		for series in zip(
+			dom.xpath("//div[@id='content']/h4"),
+			dom.xpath("//div[@id='content']/div")
+		):
+			title_, tasks_ = series
+			title = xpstr(title_, ".//text()")
+			title = re.sub("^\s+|\s+.$|\s*\[\w+\/\w+\]\s*$", "", title) # " {} [show/hide]  " -> "{}"
 
-				if as_md:
-					content = md.markdownify(content)
-					lines = []
-					for line in content.split("\n"):
-						if line == "":
-							continue
-						if line == "> ":
-							continue
-						lines.append(line)
+			tasks = []
+			for tr in tasks_.xpath(".//table[@class='results']/tr[position()!=1]"):
+				code = xpstr(tr, ".//td[1]/text()")
+				name = xpstr(tr, ".//td[2]/a/text()")
+				note = xpstr(tr, ".//*[@class='mainsphinx']/p/em/text()")
+				id_  = xpstr(tr,".//td[2]/a/@href")
+				id_  = re.sub("^\/\w+\/\d+\/\w+\/|\/$", "", id_)
 
-					content = "\n".join(lines)
-
-				out.append(content)
+				tasks.append(Problem(code=code, id=id_, note=note, name=name, parent_id=self.id))
+			out.append(ProblemSet(title=title, problems=tasks))
 
 		return out
 
-	def results(self, limit: Optional[int] = 64):
-		resp = self.ses.get(
-			f"https://satori.tcs.uj.edu.pl/contest/{self.id}/results?results_limit={limit}"
-		)
-		dom = html.fromstring(resp.text)
+	@property
+	def result(self) -> Result:
+		"""The latest submit result."""
+		return self.results[0]
+
+	@property
+	def results(self) -> List[Result]:
+		"""A list of latest results."""
+		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/results?results_limit=256")
+		dom = lxml.html.fromstring(resp.text)
 
 		out = []
 		for tr in dom.xpath("//table[@class='results']/tr[position()!=1]"):
-			id_ = tr.xpath(".//td[1]/a/text()")
-			id_ = "".join(id_)
-
-			code = tr.xpath(".//td[2]/text()")
-			code = "".join(code)
-
-			date = tr.xpath(".//td[3]/text()")
-			date = "".join(date)
+			id_ = xpstr(tr, ".//td[1]/a/text()")
+			code = xpstr(tr, ".//td[2]/text()")
+			date = xpstr(tr, ".//td[3]/text()")
 			date = datetime.strptime(date, "%Y-%m-%d %H:%M:%S")
-
-			status = tr.xpath(".//td[@class='status']/div[@class='submitstatus']/div/text()")
-			status = "".join(status)
+			status = xpstr(tr, ".//td[@class='status']/div[@class='submitstatus']/div/text()")
 			status = RStatus[status]
 
-			out.append(Result(self.ses, id_, self.id, code, status, date))
+			out.append(Result(self._ses, id_, self.id, code, status, date))
 
 		return out
 
 	def __repr__(self):
-		return f"<Contest {self.id} {self.status.name} \"{self.name}\" >"
+		return f"<Contest {self.id} {self.status.name} \"{self.name}\">"
+
+	def __str__(self):
+		return repr(self)
+
+	def __eq__(self, other):
+		return self.id == other.id
+
+	def __ne__(self, other):
+		return self.id != other.id
+
+
+
+"""
+2a^2 + 2b^2 + 2c^2 - 2ab - 2ac - 2bc >= 0
+(a^2 - 2ab + b^2) + (b^2 - 2bc + c^2) + (a^2 - 2ac + c^2) >= 0
+(a-b)^2 + (b-c)^2 + (a-c)^2 >= 0
+"""
