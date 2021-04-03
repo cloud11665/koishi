@@ -3,15 +3,18 @@ from datetime import datetime
 from typing import List
 from functools import lru_cache
 from urllib.error import HTTPError
+from itertools import chain
 
+import chardet
 import lxml
-import markdownify as md
 import requests
 
 from exceptions import AccessError
-from models import CStatus, Problem, ProblemSet, RStatus
+from models import CStatus, RStatus
+from problem import Problem, ProblemSet
 from result import Result
-from utils import parse_news, xpstr
+from utils import xpstr
+from utils import parse_news
 
 
 class Contest:
@@ -40,9 +43,9 @@ class Contest:
 		results:
 			A list of latest results.
 	"""
-	def __init__(self, ses: requests.Session, id_: int, name: str, desc: str, status: CStatus):
+	def __init__(self, ses: requests.Session, id: int, name: str, desc: str, status: CStatus):
 		self._ses = ses
-		self.id = id_
+		self.id = id
 		self.name = name
 		self.desc = desc
 		self.status = status
@@ -51,12 +54,12 @@ class Contest:
 	@lru_cache(None)
 	def news(self) -> List[str]:
 		"""A list of markdown formatted messages."""
-		resp = self.ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/news")
+		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/news")
 		return parse_news(resp.text)
 
 	@property
 	@lru_cache(None)
-	def problems(self) -> List[Problem]:
+	def problemsets(self) -> List[ProblemSet]:
 		"""A list of problems sorted from oldest to newest."""
 		if self.status.value > 1:
 			raise AccessError(f"account not a member of \"{self.name}\" contest")
@@ -70,25 +73,34 @@ class Contest:
 
 		out = []
 		for series in zip(
-			dom.xpath("//div[@id='content']/h4"),
-			dom.xpath("//div[@id='content']/div")
+			dom.xpath(r"//div[@id='content']/h4"),
+			dom.xpath(r"//div[@id='content']/div")
 		):
 			title_, tasks_ = series
 			title = xpstr(title_, ".//text()")
-			title = re.sub("^\s+|\s+.$|\s*\[\w+\/\w+\]\s*$", "", title) # " {} [show/hide]  " -> "{}"
+			title = re.sub(r"^\s+|\s+.$|\s*\[\w+\/\w+\]\s*$", "", title) # " {} [show/hide]  " -> "{}"
 
 			tasks = []
-			for tr in tasks_.xpath(".//table[@class='results']/tr[position()!=1]"):
-				code = xpstr(tr, ".//td[1]/text()")
-				name = xpstr(tr, ".//td[2]/a/text()")
-				note = xpstr(tr, ".//*[@class='mainsphinx']/p/em/text()")
-				id_  = xpstr(tr,".//td[2]/a/@href")
-				id_  = re.sub("^\/\w+\/\d+\/\w+\/|\/$", "", id_)
+			for tr in tasks_.xpath(r".//table[@class='results']/tr[position()!=1]"):
+				code = xpstr(tr, r".//td[1]/text()")
+				name = xpstr(tr, r".//td[2]/a/text()")
+				note = xpstr(tr, r".//*[@class='mainsphinx']/p/em/text()")
+				id  = xpstr(tr, r".//td[2]/a/@href")
+				id  = re.sub(r"^\/\w+\/\d+\/\w+\/|\/$", "", id)
 
-				tasks.append(Problem(code=code, id=id_, note=note, name=name, parent_id=self.id))
-			out.append(ProblemSet(title=title, problems=tasks))
+				tasks.append(
+					Problem(self._ses, code=code, id=id, note=note, name=name, parent_id=self.id)
+				)
+
+			out.append(
+				ProblemSet(title=title, problems=tasks)
+			)
 
 		return out
+
+	@property
+	def problems(self) -> List[Problem]:
+		return [*chain(*[x.problems for x in self.problemsets])]
 
 	@property
 	def result(self) -> Result:
@@ -102,17 +114,24 @@ class Contest:
 		dom = lxml.html.fromstring(resp.text)
 
 		out = []
-		for tr in dom.xpath("//table[@class='results']/tr[position()!=1]"):
-			id_ = xpstr(tr, ".//td[1]/a/text()")
-			code = xpstr(tr, ".//td[2]/text()")
-			date = xpstr(tr, ".//td[3]/text()")
+		for tr in dom.xpath(r"//table[@class='results']/tr[position()!=1]"):
+			id = xpstr(tr, r".//td[1]/a/text()")
+			src = xpstr(tr, r".//td[2]/text()")
+
+			date = xpstr(tr, r".//td[3]/text()")
 			date = datetime.strptime(date, "%Y-%m-%d %H:%M:%S")
-			status = xpstr(tr, ".//td[@class='status']/div[@class='submitstatus']/div/text()")
+
+			status = xpstr(tr, r".//td[@class='status']/div[@class='submitstatus']/div/text()")
 			status = RStatus[status]
 
-			out.append(Result(self._ses, id_, self.id, code, status, date))
+			out.append(
+				Result(self._ses, id, self.id, src, status, date)
+			)
 
 		return out
+
+	def __hash__(self):
+			return hash((type(self),) + tuple(self.__dict__.values()))
 
 	def __repr__(self):
 		return f"<Contest {self.id} {self.status.name} \"{self.name}\">"

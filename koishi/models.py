@@ -1,6 +1,5 @@
 from collections import defaultdict
 from enum import Enum
-from datetime import datetime
 from typing import List
 
 from pydantic import BaseModel
@@ -21,19 +20,6 @@ class CStatus(Enum):
 	denied = 2
 	pending = 1
 
-# Problems
-
-class Problem(_HashModel):
-	id:int
-	parent_id:int
-	code:str
-	name:str
-	note:str
-
-class ProblemSet(_HashModel):
-	problems:List[Problem]
-	title:str
-
 # Results
 
 class RStatus(Enum):
@@ -47,10 +33,4 @@ class RStatus(Enum):
 	INT = 7
 	REJ = 8
 	RUL = 9
-
-class Result(_HashModel):
-	id:int
-	parent_id:int
-	code:str
-	status:RStatus
-	date:datetime
+	QUE = 10
