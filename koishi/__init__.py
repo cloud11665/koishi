@@ -1,32 +1,29 @@
 import re
-from datetime import datetime
-from functools import lru_cache, singledispatchmethod
-from typing import Dict, List, Optional, Union
+from functools import lru_cache
+from typing import Dict, List
 from urllib.error import HTTPError, URLError
 
 import chardet
 import lxml
-import markdownify as md
 import requests
 
-from models import CStatus, statdict
 from contest import Contest
-from exceptions import AccessError, LoginError
-
+from models import CStatus
+from models import statdict
 from utils import xpstr
 from utils import parse_news
 
 class Koishi:
 	def __init__(self, login:str, password:str):
-		self.login = login
-		self.passwd = password
-		self.ses = requests.Session() # Stores the session cookie
+		self.__login = login
+		self.__passwd = password
+		self._ses = requests.Session() # Stores the session cookie
 
-		resp = self.ses.post(
+		resp = self._ses.post(
 			"https://satori.tcs.uj.edu.pl/login",
 			files = (
-				("login", (None, self.login)),
-				("password", (None, self.passwd))
+				("login", (None, self.__login)),
+				("password", (None, self.__passwd))
 			)
 		)
 		dom = lxml.html.fromstring(resp.text)
@@ -43,51 +40,37 @@ class Koishi:
 	@property
 	@lru_cache(None)
 	def contests(self) -> List[Contest]:
-		resp = self.ses.get("https://satori.tcs.uj.edu.pl/contest/select")
+		resp = self._ses.get("https://satori.tcs.uj.edu.pl/contest/select")
 		dom = lxml.html.fromstring(resp.text)
 
 		out = []
 		for table in dom.xpath("//table[@class='results']"):
 			for tr in table.xpath(".//tr[position()!=1]"):
-				id_ = tr.xpath(".//a[@class='stdlink']/@href")
-				id_ = "".join(id_)
-				id_ = re.sub("^\/\w+\/|\/$", "", id_)
+				id_ = xpstr(tr, r".//a[@class='stdlink']/@href")
+				id_ = re.sub(r"^\/\w+\/|\/$", "", id_)
 
-				name = tr.xpath(".//a[@class='stdlink']/text()")
-				name = "".join(name)
-
-				desc = tr.xpath(".//td[@class='description']/text()")
-				desc = "".join(desc)
-
-				status = tr.xpath(".//td[3]//text()")
-				status = "".join(status)
+				status = xpstr(tr, r".//td[3]//text()")
 				status = CStatus(statdict[status])
 
-				out.append(Contest(self.ses,
-						id=id_, name=name, desc=desc, status=status
-				))
+				name = xpstr(tr, r".//a[@class='stdlink']/text()")
+				desc = xpstr(tr, r".//td[@class='description']/text()")
+
+				out.append(
+					Contest(self._ses, id_, name, desc, status)
+				)
 
 		return out
-
-	# @problems.register
-	# @lru_cache(2<<10)
-	# def _(self, con:int):
-	# 	con = [x for x in self.contests if x.id == con]
-	# 	if con:
-	# 		return self.problems(*con)
-
-	# 	raise ValueError("specified id not found")
 
 	@property
 	@lru_cache(None)
 	def news(self) -> List[str]:
 		""""""
-		resp = self.ses.get(f"https://satori.tcs.uj.edu.pl/news")
+		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/news")
 		return parse_news(resp.text)
 
 	@property
 	def profile(self) -> Dict[str, str]:
-		resp = self.ses.get("https://satori.tcs.uj.edu.pl/profile")
+		resp = self._ses.get("https://satori.tcs.uj.edu.pl/profile")
 		dom = lxml.html.fromstring(resp.text)
 
 		fname = xpstr(dom, "//input[@id='id_firstname']/@value")
@@ -101,11 +84,11 @@ class Koishi:
 			}
 
 	def relog(self) -> bool:
-		resp = self.ses.post(
+		resp = self._ses.post(
 			"https://satori.tcs.uj.edu.pl/login",
 			files = (
-				("login", (None, self.login)),
-				("password", (None, self.passwd))
+				("login", (None, self.__login)),
+				("password", (None, self.__passwd))
 			)
 		)
 		return resp.ok
@@ -138,9 +121,9 @@ class Koishi:
 		affi = fields.get("affiliation", affi)
 
 		newpass = fields.get("password", "")
-		oldpass = self.passwd if newpass else ""
+		oldpass = self.__passwd if newpass else ""
 
-		resp = self.ses.post(
+		resp = self._ses.post(
 			"https://satori.tcs.uj.edu.pl/profile",
 			files=(
 				("firstname", (None, fname)),
@@ -159,3 +142,7 @@ class Koishi:
 				hdrs=None,fp=None)
 
 		return self.profile.values() == [fname, lname, affi]
+
+	def __hash__(self):
+			return hash((type(self),) + tuple(self.__dict__.values()))
+
