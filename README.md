@@ -54,7 +54,7 @@
 <Contest 6460771 approved "Liga Informatyczna V LO, 2020/21">
 
 >>> foo[4].problems
-[<Problem 6629872 X1 Promocja>, <Problem 6629900 X2 Magazyn Prezentów>,
+[<Problem 6629872 X1 Promocja>, <Problem 6629900 X2 Magazyn Prezentow>,
 ...
 <Problem 6473321 PIZ Pizza>, <Problem 6473327 TRA Tramwaje>]
 
@@ -65,7 +65,7 @@
 6851966
 
 >>> foo[4].result
-<Result 6851966 A01 2021-04-03 22:45:10 EXT>
+<Result 6851966 A01 2021-04-03 22:45:10 QUE>
 
 >>> foo[4][6].submit("print(\"trolling\")",
 ...     lang="py",
