@@ -4,11 +4,32 @@ on:
   release
 
 jobs:
-  build-and-publish:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@master
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    - name: Install build tools
+      run: |
+        pip install wheel
+        pip install twine
+
+    - name: Build wheel
+      run: |
+        python setup.py sdist bdist_wheel
+    - name: Check build status
+      run: |
+        twine check dist/*
+
+    - name: Uploat to PyPI
+      run: |
+        export TWINE_USERNAME="__token__"
+        export TWINE_PASSWORD=${{ secrets.PYPI_API_TOKEN }}
+        twine upload dist/*
