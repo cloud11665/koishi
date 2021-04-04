@@ -2,7 +2,7 @@
 	<h1 align="center">koishi.py</h1>
 	<h3 align="center">
 		<a href="./README.md">
-			<img src="./static/logo.svg" height="225">
+			<img src="https://raw.githubusercontent.com/Cloud11665/koishi/master/static/logo.svg" height="225">
 	 </h3>
 	<p align="center">
 		<a href="https://pypi.org/project/koishi" target="_blank">
