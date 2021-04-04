@@ -1,17 +1,15 @@
-from functools import lru_cache
 from typing import List, Any, Callable
 from datetime import datetime
 import time
 
-import chardet
-import pydantic
 import requests as rq
 import lxml
+import lxml.html
 
-from utils import xpstr
-from models import _HashModel
-from models import CStatus, RStatus
-from result import Result
+from koishi.utils import xpstr
+from koishi.models import _HashModel
+from koishi.models import RStatus
+from koishi.result import Result
 
 
 class ProblemSet(_HashModel):
@@ -19,6 +17,7 @@ class ProblemSet(_HashModel):
 	title:str
 
 class Problem:
+	"""Wrapper class for satori's problem"""
 	def __init__(self, ses:rq.Session, id:int, parent_id:int, code:str, name:str, note:str):
 		self._ses = ses
 		self.id = id
@@ -28,7 +27,6 @@ class Problem:
 		self.note = note
 
 	@property
-	@lru_cache(None)
 	def pdf_url(self) -> str:
 		return f"https://satori.tcs.uj.edu.pl/view/ProblemMapping/{self.parent_id}/statement_files/_pdf/{self.code}.pdf"
 
@@ -43,7 +41,7 @@ class Problem:
 
 		dom = lxml.html.fromstring(resp.text)
 		tr = dom.xpath(r"//table[@class='results']/tr[2]")[0]
-		id = xpstr(tr, r".//td[1]/a/text()")
+		id = int(xpstr(tr, r".//td[1]/a/text()"))
 
 		date = xpstr(tr, r".//td[3]/text()")
 		date = datetime.strptime(date, "%Y-%m-%d %H:%M:%S")
@@ -52,7 +50,6 @@ class Problem:
 		status = RStatus[status]
 
 		if callback:
-			print(status)
 			while status == RStatus.QUE:
 				try:
 					cresp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.parent_id}/results/{id}")
@@ -61,12 +58,12 @@ class Problem:
 
 					status = xpstr(cdom, r"//div[@id='content']/table/tr[2]/td[5]/text()")
 					status = RStatus[status]
-					print(status)
 
 					time.sleep(5)
 				except rq.exceptions.ConnectionError:
 					... # :) your ratelimits are worthless..
 
+			print(id, self.id, src, status, date)
 			res = Result(self._ses, id, self.id, src, status, date)
 
 			return callback(res)
@@ -87,3 +84,6 @@ class Problem:
 
 	def __ne__(self, other):
 		return self.id != other.id
+
+	def __call__(self, src:str, lang:str, callback:Callable=None):
+		self.submit(src,lang,callback)

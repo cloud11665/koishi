@@ -1,20 +1,19 @@
 import re
 from datetime import datetime
-from typing import List
 from functools import lru_cache
-from urllib.error import HTTPError
 from itertools import chain
+from typing import List
+from urllib.error import HTTPError
 
-import chardet
 import lxml
+import lxml.html
 import requests
 
-from exceptions import AccessError
-from models import CStatus, RStatus
-from problem import Problem, ProblemSet
-from result import Result
-from utils import xpstr
-from utils import parse_news
+from koishi.exceptions import AccessError
+from koishi.models import CStatus, RStatus
+from koishi.problem import Problem, ProblemSet
+from koishi.result import Result
+from koishi.utils import parse_news, xpstr, timed_lru_cache
 
 
 class Contest:
@@ -50,17 +49,13 @@ class Contest:
 		self.desc = desc
 		self.status = status
 
-	@property
-	@lru_cache(None)
-	def news(self) -> List[str]:
-		"""A list of markdown formatted messages."""
+	@timed_lru_cache(7200, None)
+	def __get_news(self) -> List[str]:
 		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/news")
 		return parse_news(resp.text)
 
-	@property
-	@lru_cache(None)
-	def problemsets(self) -> List[ProblemSet]:
-		"""A list of problems sorted from oldest to newest."""
+	@timed_lru_cache(7200, None)
+	def __get_problemsets(self) -> List[ProblemSet]:
 		if self.status.value > 1:
 			raise AccessError(f"account not a member of \"{self.name}\" contest")
 
@@ -69,7 +64,7 @@ class Contest:
 
 		if resp.status_code == 404:
 			raise HTTPError(resp.url,resp.status_code,"Contest not found",
-				hdrs=None,fp=None)
+				hdrs={},fp=None)
 
 		out = []
 		for series in zip(
@@ -98,8 +93,20 @@ class Contest:
 
 		return out
 
+
+	@property
+	def news(self) -> List[str]:
+		"""A list of markdown formatted messages."""
+		return self.__get_news()
+
+	@property
+	def problemsets(self) -> List[ProblemSet]:
+		"""A list of ProblemSet objects sorted from oldest to newest"""
+		return self.__get_problemsets()
+
 	@property
 	def problems(self) -> List[Problem]:
+		"""A list of problems  sorted from oldest to newest"""
 		return [*chain(*[x.problems for x in self.problemsets])]
 
 	@property
@@ -131,7 +138,7 @@ class Contest:
 		return out
 
 	def __hash__(self):
-			return hash((type(self),) + tuple(self.__dict__.values()))
+			return hash((type(self), self.id))
 
 	def __repr__(self):
 		return f"<Contest {self.id} {self.status.name} \"{self.name}\">"
@@ -144,4 +151,15 @@ class Contest:
 
 	def __ne__(self, other):
 		return self.id != other.id
+
+	def __getitem__(self, key):
+		return self.problems[key]
+
+	def __delitem__(self, key):
+		del self.problems[key]
+
+	def __setitem__(self, key, val):
+		raise NotImplementedError(
+			"Overriding problems is not supported"
+		)
 

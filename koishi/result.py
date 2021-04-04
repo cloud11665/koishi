@@ -1,23 +1,25 @@
-import re
 import html as libhtml
+import re
 from datetime import datetime
 from functools import lru_cache
 from typing import List
 
-import chardet
-import requests as rq
 import lxml
+import lxml.html
+import requests as rq
 
-from models import _HashModel
-from models import RStatus
-from utils import xpstr
+from koishi.models import RStatus, _HashModel
+from koishi.utils import xpstr
+
 
 class ResultTest(_HashModel):
 	name:str
 	status:RStatus
 	time:str
 
+
 class ResultDetails(_HashModel):
+	"""Detailed version of class Result"""
 	tests:List[ResultTest]
 	source:str
 
@@ -32,6 +34,7 @@ class ResultDetails(_HashModel):
 
 
 class Result:
+	"""Wrapper class for satori problem result"""
 	def __init__(self, ses:rq.Session, id:int, parent_id:int, src:str, status:RStatus, date:datetime):
 		self._ses = ses
 		self.id = id
@@ -40,14 +43,13 @@ class Result:
 		self.status = status
 		self.date = date
 
-	@property
 	@lru_cache(None)
-	def details(self):
+	def _get_details(self):
 		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.parent_id}/results/{self.id}")
 		dom = lxml.html.fromstring(resp.text)
 
 		tests = []
-		for tr in dom.xpath("//table[@class='docutils']/tbody[@valign='top']/tr"):
+		for tr in dom.xpath(r"//table[@class='docutils']/tbody[@valign='top']/tr"):
 			name = xpstr(tr, r".//td[1]/text()")
 
 			status = xpstr(tr, r".//td[2]/text()")
@@ -66,7 +68,13 @@ class Result:
 		return ResultDetails(tests=tests, source=source)
 
 	@property
+	def details(self):
+		"""Returns a ResultDetails object made from self"""
+		return self._get_details()
+
+	@property
 	def ok(self):
+		"""Returns True when result is positive"""
 		return not self.status.value
 
 	def __eq__(self, other):
