@@ -67,8 +67,10 @@
 >>> foo[4].result
 <Result 6851966 A01 2021-04-03 22:45:10 EXT>
 
->>> foo[4][6].submit("print(\"trolling\")", "py",
-...     callback=lambda x: print(x.src x.details.tests, sep="\n"))
+>>> foo[4][6].submit("print(\"trolling\")",
+...     lang="py",
+...     callback=lambda x: print(x.src x.details.tests, sep="\n")
+... )
 print("trolling")
 [ResultTest(name='0', status=<RStatus.ANS: 1>, time='0.004')]
 ```
