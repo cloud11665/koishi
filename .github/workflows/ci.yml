@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  Build_3.7:
+  Build-37:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -29,7 +29,7 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-  Build_3.8:
+  Build-38:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -50,7 +50,7 @@ jobs:
       run: |
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-  Build_3.9:
+  Build-39:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
