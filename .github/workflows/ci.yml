@@ -23,7 +23,7 @@ jobs:
         pip install -r requirements.txt
     - name: Build
       run: |
-        echo "from koishi import Koishi"
+        echo "from koishi import Koishi" > main.py
         python main.py
     - name: Lint with flake8
       run: |

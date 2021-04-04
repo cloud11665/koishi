@@ -1,15 +1,15 @@
 name: Publish to PyPI
 
 on:
-	release:
-		types: [published]
+  release:
+    types: [published]
 
 jobs:
-	build-and-publish:
-		runs-on: ubuntu-latest
-		steps:
-			- name: Publish distribution to PyPI
-				uses: pypa/gh-action-pypi-publish@master
-				with:
-					user: __token__
-					password: ${{ secrets.PYPI_API_TOKEN }}
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
