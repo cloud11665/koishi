@@ -1,19 +1,18 @@
 import re
-from functools import lru_cache
 from typing import Dict, List
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 
-import chardet
 import lxml
+import lxml.html
 import requests
 
-from contest import Contest
-from models import CStatus
-from models import statdict
-from utils import xpstr
-from utils import parse_news
+from koishi.contest import Contest
+from koishi.models import CStatus, statdict
+from koishi.utils import parse_news, xpstr, timed_lru_cache
+
 
 class Koishi:
+	""""""
 	def __init__(self, login:str, password:str):
 		self.__login = login
 		self.__passwd = password
@@ -29,25 +28,23 @@ class Koishi:
 		dom = lxml.html.fromstring(resp.text)
 
 		if not resp.ok:
-			raise HTTPError(resp.url,resp.status_code,"Internal satori error",
-				hdrs=None,fp=None)
+			raise HTTPError(resp.url,resp.status_code, "Internal satori error",
+				hdrs={},fp=None)
 
-		if dom.xpath("//*[@id='content']/form/table/tr[1]/td/text()='Login failed!'"):
-			raise HTTPError(resp.url,resp.status_code,"Invalid login credentials",
-				hdrs=None,fp=None)
+		if dom.xpath(r"//*[@id='content']/form/table/tr[1]/td/text()='Login failed!'"):
+			raise HTTPError(resp.url,resp.status_code, "Invalid login credentials",
+				hdrs={},fp=None)
 
-
-	@property
-	@lru_cache(None)
-	def contests(self) -> List[Contest]:
+	@timed_lru_cache(7200, None)
+	def _get_contests(self) -> List[Contest]:
 		resp = self._ses.get("https://satori.tcs.uj.edu.pl/contest/select")
 		dom = lxml.html.fromstring(resp.text)
 
 		out = []
-		for table in dom.xpath("//table[@class='results']"):
-			for tr in table.xpath(".//tr[position()!=1]"):
-				id_ = xpstr(tr, r".//a[@class='stdlink']/@href")
-				id_ = re.sub(r"^\/\w+\/|\/$", "", id_)
+		for table in dom.xpath(r"//table[@class='results']"):
+			for tr in table.xpath(r".//tr[position()!=1]"):
+				id = xpstr(tr, r".//a[@class='stdlink']/@href")
+				id = int(re.sub(r"^\/\w+\/|\/$", "", id))
 
 				status = xpstr(tr, r".//td[3]//text()")
 				status = CStatus(statdict[status])
@@ -56,34 +53,50 @@ class Koishi:
 				desc = xpstr(tr, r".//td[@class='description']/text()")
 
 				out.append(
-					Contest(self._ses, id_, name, desc, status)
+					Contest(self._ses, id, name, desc, status)
 				)
 
+		if len(out) == 1 and out[0].id == 251519:
+			raise HTTPError(resp.url,resp.status_code,
+				"An error occurred while fetching user's contests",
+				hdrs={},fp=None)
+
+		# return [*sorted(out, key=lambda x,y: x.id > y.id)]
 		return out
 
-	@property
-	@lru_cache(None)
-	def news(self) -> List[str]:
-		""""""
+	@timed_lru_cache(7200, None)
+	def __get_news(self) -> List[str]:
 		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/news")
 		return parse_news(resp.text)
 
 	@property
+	def contests(self) -> List[Contest]:
+		"""Returns a list of user's contests"""
+		return self._get_contests()
+
+	@property
+	def news(self) -> List[str]:
+		"""Returns a list of Markdown formatted posts"""
+		return self.__get_news()
+
+	@property
 	def profile(self) -> Dict[str, str]:
+		"""Ret"""
 		resp = self._ses.get("https://satori.tcs.uj.edu.pl/profile")
 		dom = lxml.html.fromstring(resp.text)
 
-		fname = xpstr(dom, "//input[@id='id_firstname']/@value")
-		lname = xpstr(dom, "//input[@id='id_lastname']/@value")
-		affi  = xpstr(dom, "//input[@id='id_affiliation']/@value")
+		fname = xpstr(dom, r"//input[@id='id_firstname']/@value")
+		lname = xpstr(dom, r"//input[@id='id_lastname']/@value")
+		affi = xpstr(dom, r"//input[@id='id_affiliation']/@value")
 
 		return {
 			"first_name": fname,
 			"last_name": lname,
 			"affiliation": affi,
-			}
+		}
 
 	def relog(self) -> bool:
+		"""Relogs user with credentials provided in `__init__`"""
 		resp = self._ses.post(
 			"https://satori.tcs.uj.edu.pl/login",
 			files = (
@@ -93,7 +106,7 @@ class Koishi:
 		)
 		return resp.ok
 
-	def update(self, **fields) -> None:
+	def update(self, **fields) -> bool:
 		"""Updates user's profile.
 
 		Updates users satori profile with specified keyword arguments.
@@ -139,10 +152,38 @@ class Koishi:
 		if not resp.ok:
 			raise HTTPError(resp.url,resp.status_code,
 				"An error occurred while updating the profile",
-				hdrs=None,fp=None)
+				hdrs={},fp=None)
 
-		return self.profile.values() == [fname, lname, affi]
+		return tuple(self.profile.values()) == (fname, lname, affi)
 
 	def __hash__(self):
-			return hash((type(self),) + tuple(self.__dict__.values()))
+		return hash((type(self), self.__login, self.__passwd))
 
+	def __repr__(self):
+		return f"<{type(self)} #{hash(self)}>"
+
+	def __str__(self):
+		return repr(self)
+
+	def __eq__(self, other):
+		return hash(self) == hash(other)
+
+	def __ne__(self, other):
+		return hash(self) != hash(other)
+
+	def __getitem__(self, key):
+		return self.contests[key]
+
+	def __delitem__(self, key):
+		del self.contests[key]
+
+	def __setitem__(self, key, val):
+		raise NotImplementedError(
+			"Overriding contests is not supported"
+		)
+
+	def __len__(self):
+		return len(self.contests)
+
+	def __call__(self):
+		return self.relog()
