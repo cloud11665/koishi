@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
 	name="koishi",
-	version="1.1.5",
+	version="1.1.6",
 	description="Python wrapper for the unofficial scraped API of the satori testing system.",
 	long_description=open("README.md", "r").read(),
 	long_description_content_type="text/markdown",
