@@ -117,12 +117,13 @@ class Contest:
 	@property
 	def results(self) -> List[Result]:
 		"""A list of latest results."""
-		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/results?results_limit=256")
+		resp = self._ses.get(f"https://satori.tcs.uj.edu.pl/contest/{self.id}/results?results_limit=4096")
 		dom = lxml.html.fromstring(resp.text)
 
 		out = []
 		for tr in dom.xpath(r"//table[@class='results']/tr[position()!=1]"):
 			id = xpstr(tr, r".//td[1]/a/text()")
+			id = int(id)
 			src = xpstr(tr, r".//td[2]/text()")
 
 			date = xpstr(tr, r".//td[3]/text()")
