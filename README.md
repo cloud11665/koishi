@@ -83,7 +83,7 @@ $ pip install koishi
 ## Credits
 - [MasFlam/SatoriCLI.jl](https://github.com/MasFlam/SatoriCLI.jl) - for helping with multipart problem submit requests.
 - [zielmicha/satori-cli](https://github.com/zielmicha/satori-cli) - for inspiration / idea.
-- [u/plasticparakeet](https://www.reddit.com/r/touhou/comments/9jkphu/windows_characters_as_flatstyle_sprites) - Koishi Komeiji icon.
+- [plasticparakeet](https://svgshare.com/i/8Wo.svg) - Koishi Komeiji icon.
 &nbsp;
 
 ## Contributing
